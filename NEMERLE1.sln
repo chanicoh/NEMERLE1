@@ -14,6 +14,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "targil5", "targil5", "{0BE418C2-974E-4376-998B-CB664A188508}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "targil4", "targil4", "{0E5B31BA-9C72-48C4-9C8D-609699A84EBF}"
+	ProjectSection(SolutionItems) = preProject
+		..\NEMERLE\targil4\targil04-324245935-346299316.zip = ..\NEMERLE\targil4\targil04-324245935-346299316.zip
+	EndProjectSection
 EndProject
 Project("{EDCC3B85-0BAD-11DB-BC1A-00112FDE8B61}") = "targil4part1", "targil4part1\targil4part1.nproj", "{CA0CBCC8-0C67-42F4-89C7-1363FEBC1408}"
 EndProject

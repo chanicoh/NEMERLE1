@@ -65,6 +65,17 @@
   <ItemGroup>
     <Folder Include="Properties\" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Properties\InputA.vm">
+      <SubType>Content</SubType>
+    </Content>
+    <Content Include="Properties\InputB.vm">
+      <SubType>Content</SubType>
+    </Content>
+    <Content Include="Properties\program.docx">
+      <SubType>Content</SubType>
+    </Content>
+  </ItemGroup>
   <Import Project="$(Nemerle)\Nemerle.MSBuild.targets" />
   <!--
 		To modify your build process, add your task inside one of the targets below and uncomment it. 

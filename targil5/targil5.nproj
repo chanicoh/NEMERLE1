@@ -77,6 +77,11 @@
   <ItemGroup>
     <Folder Include="Properties\" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Properties\targil05-324245935-346299316.zip">
+      <SubType>Content</SubType>
+    </Content>
+  </ItemGroup>
   <Import Project="$(Nemerle)\Nemerle.MSBuild.targets" />
   <!--
 		To modify your build process, add your task inside one of the targets below and uncomment it. 
