@@ -4,14 +4,523 @@ using Nemerle.Utility;
 
 using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.Console;
 using System.Linq;
+using System.IO.Directory;
+using System.IO;
 
 module Program
 {
-  Main() : void
-  {
-    WriteLine("Hi!");
-    _ = ReadLine();
-  }
+    mutable runLabelNum = 0;
+
+    static Main() : void
+    {
+        System.Console.WriteLine("Please enter folder path");        
+        def filePath=ReadLine(); 
+        def directoryName=Path.GetFileNameWithoutExtension(filePath);
+        def fileWrite = System.IO.StreamWriter(filePath + "\\" + directoryName + ".asm");//creating a file with the folder name just with asm ext
+
+        mutable counterVM=0;
+        mutable flag=false;
+
+        //count how many vm files are in the directory
+        foreach (file in Directory.EnumerateFiles(filePath, "*.vm"))
+        {
+            def fileName=Path.GetFileNameWithoutExtension(file);//only the file without extensions
+            counterVM++;  
+            if(fileName=="Sys")
+            {flag=true;}
+            else{}
+            
+        }
+
+        if(counterVM>1 || (counterVM==1 && flag))
+        {
+            //SP = 256     ->bootstrap part a
+            fileWrite.WriteLine("@256");
+            fileWrite.WriteLine("D=A");
+            fileWrite.WriteLine("@SP");
+            fileWrite.WriteLine("M=D");
+            //call Sys.init 0    ->bootstrap part b           
+            def callString = "call Sys.init 0";
+            def result=convertCallToHack(callString);           
+            foreach(word in result)
+            {
+                if(!word.IsEmpty())
+                {
+                    fileWrite.WriteLine(word);
+                }
+                else
+                {}
+            }
+            //convert the Sys.init file first to the ASM file
+            def readSys = System.IO.StreamReader(filePath+"\\"+"Sys.vm");
+            def convertAllLines():void
+            {
+                def line = readSys.ReadLine();//reads only one line
+
+                when(line!=null)
+                {
+                    if(line.StartsWith("//") || line.IsEmpty())//skipping all comments/empty rows
+                    {
+                        convertAllLines();
+                    }
+                    else
+                    {                         
+                        fileWrite.WriteLine("//"+line); //writing the command as a comment to the asm file               
+
+                        def result=convertFromVMtoHack(line,"Sys"); 
+
+                        //write each word in the converted line in to the .asm file by writing each command in a seperate line
+                        foreach(word in result)
+                        {
+                            if(!word.IsEmpty())
+                            {
+                                fileWrite.WriteLine(word);
+                            }
+                            else
+                            {}
+                        }
+
+                        fileWrite.Flush();
+                        convertAllLines();//repeat untill all commands are translated
+                    }
+                }
+            };
+            convertAllLines();
+
+        }
+        else//only 1 VM do nothing
+        {}
+
+
+
+        //finding all the files in the folder which ends with .vm  
+        foreach (file in Directory.EnumerateFiles(filePath, "*.vm"))
+        {     
+            def fileName=Path.GetFileNameWithoutExtension(file);//only the file without extensions
+            def fileRead = System.IO.StreamReader(filePath+"\\"+fileName+".vm");
+            if(fileName != "Sys")
+            {
+                def convertAllLines():void
+                {
+                    def line = fileRead.ReadLine();//reads only one line
+
+                    when(line!=null)
+                    {
+                        if(line.StartsWith("//") || line.IsEmpty())//skipping all comments/empty rows
+                        {
+                            convertAllLines();
+                        }
+                        else
+                        {                         
+                            fileWrite.WriteLine("//"+line); //writing the command as a comment to the asm file               
+
+                            def result=convertFromVMtoHack(line,fileName); 
+
+                        //write each word in the converted line in to the .asm file by writing each command in a seperate line
+                            foreach(word in result)
+                            {
+                                if(!word.IsEmpty())
+                                {
+                                    fileWrite.WriteLine(word);
+                                }
+                                else
+                                {}
+                            }
+
+                            fileWrite.Flush();
+                            convertAllLines();//repeat untill all commands are translated
+                        }
+                    }
+                };
+                convertAllLines();
+            }
+            else{}
+        }
+
+        _=ReadLine();  
+    }
+
+
+    private convertFromVMtoHack(line:string,fileName:string):array[string]
+    {
+        mutable r=array["":string];//initializing the array with an empty collumn
+
+        mutable firstCommand = "";
+        if(line.Contains(' '))
+        {
+            firstCommand = line.Substring(0,line.IndexOf(' '));//if there is a space in the command line,seperate it and take the first word
+        }
+        else
+        {
+            firstCommand = line;//the whole line is the command
+        }
+
+        match(firstCommand)
+        {
+            |"pop"=>
+            {    
+                    foreach(c in convertPopToHach(line,fileName))//checking each word in the converted pop command
+                    {
+                        if(!c.IsEmpty())
+                        {
+                            r = r.Append(array[c]);
+                        }
+                        else
+                        {}
+                    }
+            }
+            |"push"=>
+            {                          
+                    foreach(word in convertPushToHack(line,fileName))//checking each word in the converted push command
+                    {
+                        if(!word.IsEmpty())
+                        {
+                            r = r.Append(array[word]);
+                        }
+                        else
+                        {}
+                    }
+            }
+            |"label"=>
+            {
+                foreach(word in convertLabelToHack(line,fileName))//checking each word in the converted push command
+                    {
+                        if(!word.IsEmpty())
+                        {
+                            r = r.Append(array[word]);
+                        }
+                        else
+                        {}
+                    }
+            }  
+            |"goto"=>
+            {
+                foreach(word in convertGotoToHack(line,fileName))//checking each word in the converted push command
+                    {
+                        if(!word.IsEmpty())
+                        {
+                            r = r.Append(array[word]);
+                        }
+                        else
+                        {}
+                    }
+            }  
+            |"if-goto"=>
+            {
+                foreach(word in convertIfGotoToHack(line,fileName))//checking each word in the converted if-goto command
+                    {
+                        if(!word.IsEmpty())
+                        {
+                            r = r.Append(array[word]);
+                        }
+                        else
+                        {}
+                    }
+            }
+            |"call"=>
+            {
+                foreach(word in convertCallToHack(line))//checking each word in the converted call command
+                    {
+                        if(!word.IsEmpty())
+                        {
+                            r = r.Append(array[word]);
+                        }
+                        else
+                        {}
+                    }
+            }
+            |"function"=>
+            {
+               foreach(word in convertFunctionToHack(line))//checking each word in the converted call command
+                    {
+                        if(!word.IsEmpty())
+                        {
+                            r = r.Append(array[word]);
+                        }
+                        else
+                        {}
+                    } 
+            }
+            |"return"=>
+            {
+                 foreach(word in convertReturnToHack(line))//checking each word in the converted call command
+                    {
+                        if(!word.IsEmpty())
+                        {
+                            r = r.Append(array[word]);
+                        }
+                        else
+                        {}
+                    } 
+            }
+            |"add"=>
+            {
+                    r = r.Append(array["@SP","A=M-1","D=M","A=A-1","M=D+M","@SP","M=M-1"]); 
+            }
+            |"sub"=>
+            {
+                    r = r.Append(array["@SP","M=M-1","A=M","D=M","A=A-1","M=M-D"]);
+                    //r = r.Append(array["@SP","A=M-1","D=M","A=A-1","M=M-D","@SP","M=M-1"]);
+            }
+            |"neg"=>
+            {
+                    r = r.Append(array["@SP","A=M","A=A-1","M=-M"]);
+            }
+            |"not"=>
+            {
+                    r = r.Append(array["@SP","A=M","A=A-1","M=!M"]);
+            }
+            |"or"=>
+            {
+                    r = r.Append(array["@SP","M=M-1","A=M","D=M","A=A-1","M=M|D"]);
+            }
+            |"and"=>
+            {
+                    r = r.Append(array["@SP","M=M-1","A=M","D=M","A=A-1","M=M&D"]);                    
+            }
+            |"eq"=>
+            {
+                    r = r.Append(array["@SP","A=M-1","D=M","A=A-1","D=M-D","@IF_TRUE"+runLabelNum,"D;JEQ","D=0","@SP","A=M-1","A=A-1","M=D","@IF_FALSE"+runLabelNum,"0;JMP","(IF_TRUE"+runLabelNum+")","D=-1","@SP","A=M-1","A=A-1","M=D","(IF_FALSE"+runLabelNum+")","@SP","M=M-1"]);
+                    runLabelNum++;
+            }
+            |"gt"=>
+            {
+                    r = r.Append(array["@SP","A=M-1","D=M","A=A-1","D=M-D","@IF_TRUE"+runLabelNum,"D;JGT","D=0","@SP","A=M-1","A=A-1","M=D","@IF_FALSE"+runLabelNum,"0;JMP","(IF_TRUE"+runLabelNum+")","D=-1","@SP","A=M-1","A=A-1","M=D","(IF_FALSE"+runLabelNum+")","@SP","M=M-1"]);
+                    runLabelNum++;
+            }
+            |"lt"=>
+            {
+                    r = r.Append(array["@SP","A=M-1","D=M","A=A-1","D=M-D","@IF_TRUE"+runLabelNum,"D;JLT","D=0","@SP","A=M-1","A=A-1","M=D","@IF_FALSE"+runLabelNum,"0;JMP","(IF_TRUE"+runLabelNum+")","D=-1","@SP","A=M-1","A=A-1","M=D","(IF_FALSE"+runLabelNum+")","@SP","M=M-1"]);
+                    runLabelNum++;
+            }
+            
+            |_=>r = r.Append(array[""]);//default
+        }
+
+        r;//returns r
+    }
+
+    private convertPushToHack(line:string,fileName:string):array[string]
+    {
+        mutable r=array["":string];
+
+        def secondCommand = line.Split(' ')[1];
+        def thirdArg = line.Split(' ')[2];
+
+        match(secondCommand)
+        {
+        |""=>{}
+        |"local" => 
+        { 
+                r = r.Append(array["@" + thirdArg:string,"D=A","@1","A=M+D","D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"argument" => 
+        { 
+                    r  = r.Append(array["@" + thirdArg:string,"D=A","@2","A=M+D","D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"this" => 
+        { 
+                    r  = r.Append(array["@" + thirdArg:string,"D=A","@THIS","A=M+D","D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"that" => 
+        { 
+                    r  = r.Append(array["@" + thirdArg:string,"D=A","@THAT","A=M+D","D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"temp" => 
+        { 
+                    r  = r.Append(array["@" + thirdArg:string,"D=A","@5","A=M+D","D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"pointer" =>
+
+        { 
+                    match(thirdArg)
+                    {
+                        |"0" => {r  = r.Append(array["@THIS","D=M","@SP","A=M","M=D","@SP","M=M+1"]);}
+                        |"1" => {r  = r.Append(array["@THAT","D=M","@SP","A=M","M=D","@SP","M=M+1"]);}
+                    }
+        }
+        |"static" => 
+        { 
+                    r  = r.Append(array["@" + fileName + "." + thirdArg:string,"D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"constant" => 
+        { 
+                    r  = r.Append(array["@" + thirdArg:string,"D=A","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |_=>r = r.Append(array[""]);//default
+        }
+
+        r;//returns r
+    }
+
+    private convertPopToHach(command:string,fileName:string):array[string]
+    {
+        mutable r = array["":string];//initializing the array
+
+        def secondCommand = command.Split(' ')[1];
+        def thirdArg = command.Split(' ')[2];
+
+        match(secondCommand)
+        {
+        |""=>{}
+        |"local" => 
+        { 
+            r = r.Append(array["@SP","A=M-1","D=M","@1","A=M"]);
+                    def temp=Convert.ToInt32(thirdArg);  //converting third arg to int for the loop                  
+                    foreach(i in [0 .. temp-1])
+                    {
+                        r = r.Append(array["A=A+1"]);
+                    }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"argument" => 
+        {
+            r = r.Append(array["@SP","A=M-1","D=M","@2","A=M"]);
+                    def temp=Convert.ToInt32(thirdArg);  //converting third arg to int for the loop                  
+                    foreach(i in [0 .. temp-1])
+                    {
+                        r = r.Append(array["A=A+1"]);
+                    }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"this" => 
+        {
+                    r = r.Append(array["@SP","A=M-1","D=M","@THIS","A=M"]);
+                    def temp=Convert.ToInt32(thirdArg);  //converting third arg to int for the loop                  
+                    foreach(i in [0 .. temp-1])
+                    {
+                        r = r.Append(array["A=A+1"]);
+                    }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"that" => 
+        {
+                    r = r.Append(array["@SP","A=M-1","D=M","@THAT","A=M"]);
+                    def temp=Convert.ToInt32(thirdArg);                    
+                    foreach(i in [0 .. temp-1])
+                    {
+                        r = r.Append(array["A=A+1"]);
+                    }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"temp" => 
+        {
+                    r = r.Append(array["@SP","A=M-1","D=M","@5"]);
+                    def temp=Convert.ToInt32(thirdArg);                    
+                    foreach(i in [0 .. temp-1])
+                    {
+                        r = r.Append(array["A=A+1"]);
+                    }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"pointer" =>
+        { 
+                    match(thirdArg)
+                    {
+                        |"0" => {r = r.Append(array["@SP","M=M-1","A=M","D=M","@THIS","M=D"]);}
+                        |"1" => {r = r.Append(array["@SP","M=M-1","A=M","D=M","@THAT","M=D"]);}
+                    }
+        }
+        |"static" => 
+        { 
+                    r = r.Append(array["@SP","M=M-1","A=M","D=M","@" + fileName + "." + thirdArg:string,"M=D"]);
+        }
+        |_=>r = r.Append(array[""]);//default
+        }
+
+        r;//returns r
+    }
+
+    private convertLabelToHack(line:string,fileName:string):array[string]
+    {
+        mutable r=array["":string];
+
+        def secondCommand = line.Split(' ')[1];
+
+        r = r.Append(array["(" + fileName + "." + secondCommand:string + ")"]);
+
+        r;//returns r
+    }
+
+    private convertGotoToHack(line:string,fileName:string):array[string]
+    {
+        mutable r=array["":string];
+
+        def secondCommand = line.Split(' ')[1];
+
+        r = r.Append(array["@" + fileName + "." + secondCommand:string,"0;JMP"]);
+
+        r;//returns r
+    }
+
+    private convertIfGotoToHack(line:string,fileName:string):array[string]
+    {
+        mutable r=array["":string];
+
+        def secondCommand = line.Split(' ')[1];
+
+        r = r.Append(array["@SP","M=M-1","A=M","D=M","@" + fileName + "." + secondCommand:string, "D; JNE"]);
+
+        r;//returns r
+    }
+
+    private convertCallToHack(line:string):array[string]
+    {
+        mutable r=array["":string];
+
+        def funcName = line.Split(' ')[1];
+        def numOfArg = Convert.ToInt32(line.Split(' ')[2]);
+
+        r = r.Append(array["@" + funcName:string + ".ReturnAddress" + runLabelNum,"D=A","@SP","A=M","M=D","@SP","M=M+1"]);// push return-Address
+        r = r.Append(array["@LCL","D=M","@SP","A=M","M=D","@SP","M=M+1"]);// push LCL
+        r = r.Append(array["@ARG","D=M","@SP","A=M","M=D","@SP","M=M+1"]);// push ARG
+        r = r.Append(array["@THIS","D=M","@SP","A=M","M=D","@SP","M=M+1"]);// push THIS
+        r = r.Append(array["@THAT","D=M","@SP","A=M","M=D","@SP","M=M+1"]);// push THAT
+        mutable temp=numOfArg+5;        
+        r = r.Append(array["@SP","D=M","@" + temp,"D=D-A","@ARG","M=D"]);// ARG = SP-n-5      
+        r = r.Append(array["@SP","D=M","@LCL","M=D"]);// LCL = SP  
+        r = r.Append(array["@" + funcName:string,"0;JMP"]);// goto func   
+        r = r.Append(array["(" + funcName:string + ".ReturnAddress" +  runLabelNum + ")"]);// label return-Address   
+        runLabelNum++;
+
+        r;//returns r
+
+    }
+
+    private convertFunctionToHack(line:string):array[string]
+    {
+        mutable r=array["":string];
+
+        def funcName = line.Split(' ')[1];
+        def numOfLcl = line.Split(' ')[2];
+
+        r = r.Append(array["(" + funcName:string + ")"]); // label function
+        def temp=Convert.ToInt32(numOfLcl);  //converting third arg to int for the loop                  
+        foreach(i in [0 .. temp-1])
+        {
+            r = r.Append(array["@0","D=A","@SP","A=M","M=D","@SP","M=M+1"]);// push constant 0 k times
+        }
+
+        r;//returns r
+    }
+
+    private convertReturnToHack(line:string):array[string]
+    {
+        mutable r=array["":string];
+
+        r=r.Append(array["@LCL","D=M"]);// Temp =LCL
+        r=r.Append(array["@5", "A=D-A","D=M","@13","M=D"]);//return=*(Temp-5)    RAM[13]=(LCL-5)
+        r=r.Append(array["@SP","M=M-1","A=M","D=M","@ARG","A=M","M=D"]);//*ARG=returnValue    - pop() and push returnValue to the head of stack 
+        r=r.Append(array["@ARG","D=M","@SP","M=D+1"]);//SP=ARG+1
+        r=r.Append(array["@LCL","M=M-1","A=M","D=M","@THAT","M=D"]);//THAT=*(Temp-1)
+        r=r.Append(array["@LCL","M=M-1","A=M","D=M","@THIS","M=D"]);//THIS=*(Temp-2)
+        r=r.Append(array["@LCL","M=M-1","A=M","D=M","@ARG","M=D"]);//ARG=*(Temp-3)
+        r=r.Append(array["@LCL","M=M-1","A=M","D=M","@LCL","M=D"]);//LCL=*(Temp-4)
+        r=r.Append(array["@13","A=M","0;JMP"]);//goto returnAddress
+
+        r;//returns r
+    }
 }

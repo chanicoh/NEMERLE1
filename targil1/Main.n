@@ -4,14 +4,288 @@ using Nemerle.Utility;
 
 using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.Console;
 using System.Linq;
-
+using System.IO.Directory;
+using System.IO;
+//chana cohen 324245935
+//shirel ben ebgui 346299316
 module Program
 {
-  Main() : void
-  {
-    WriteLine("Hi!");
-    _ = ReadLine();
-  }
+    mutable runLabelNum = 0;
+    
+    static Main() : void
+    {
+        System.Console.WriteLine("Please enter folder path");  
+        def filePath=ReadLine(); 
+        //def filePath=  @"C:\Users\chanacom\Desktop\NEMERLE\targil1\SimpleAdd";
+              
+        
+        //finding all the files in the folder which ends with .vm  
+        foreach (file in Directory.EnumerateFiles(filePath, "*.vm"))
+        {     
+            def fileName=Path.GetFileNameWithoutExtension(file);//the name of the file
+            def fileRead = System.IO.StreamReader(filePath+"\\"+fileName+".vm");
+            def fileWrite = System.IO.StreamWriter(filePath+"\\"+fileName+".asm");//creating a file with asm of the end
+            def convertAllLines():void
+            {
+                def line = fileRead.ReadLine();//reads only one line
+                
+                when(line!=null)
+                {
+                    if(line.StartsWith("//") || line.IsEmpty())//skipping all comments/empty rows
+                    {
+                        convertAllLines();
+                    }
+                    else
+                    {                         
+                        fileWrite.WriteLine("//"+line); //writing the command as a comment to the asm file               
+                        
+                        def result=convertFromVMtoHack(line ,fileName); //get the result from convertFromVMtoHack
+                        
+                        //write each word in the asm file
+                        foreach(word in result)
+                        {
+                            if(!word.IsEmpty())
+                            {
+                                fileWrite.WriteLine(word);
+                            }
+                            else
+                            {}
+                        }
+
+                        fileWrite.Flush();
+                        convertAllLines();//repeat untill all commands are translated
+                    }
+                }
+            };
+            convertAllLines();
+        }
+
+        _=ReadLine();  
+    }
+
+// get comment and file and cpnvert from vm to hack and return the result
+    private convertFromVMtoHack(line:string,fileName:string):array[string]
+    {
+        mutable r=array["":string];//array of the result
+
+        mutable command = "";
+        if(line.Contains(' '))
+        {
+            command = line.Substring(0,line.IndexOf(' '));//if there is a space in the command line,seperate it and take the first word
+        }
+        else
+        {
+            command = line;//the whole line is the command
+        }
+
+        match(command)//match the command
+        {
+            |"pop"=>
+            {    
+                    foreach(c in convertPopToHach(line,fileName))//checking each word in the converted pop command
+                    {
+                        if(!c.IsEmpty())
+                        {
+                            r = r.Append(array[c]);
+                        }
+                        else
+                        {}
+                    }
+            }
+            |"push"=>
+            {                          
+                    foreach(word in convertPushToHack(line,fileName))//checking each word in the converted push command
+                    {
+                        if(!word.IsEmpty())
+                        {
+                            r = r.Append(array[word]);
+                        }
+                        else
+                        {}
+                    }
+            }
+            |"add"=>
+            {
+                    r = r.Append(array["@SP","A=M-1","D=M","A=A-1","M=D+M","@SP","M=M-1"]); 
+            }
+            |"sub"=>
+            {
+                    r = r.Append(array["@SP","M=M-1","A=M","D=M","A=A-1","M=M-D"]);
+                  
+            }
+            |"neg"=>
+            {
+                    r = r.Append(array["@SP","A=M","A=A-1","M=-M"]);
+            }
+            |"not"=>
+            {
+                    r = r.Append(array["@SP","A=M","A=A-1","M=!M"]);
+            }
+            |"or"=>
+            {
+                    r = r.Append(array["@SP","M=M-1","A=M","D=M","A=A-1","M=M|D"]);
+            }
+            |"and"=>
+            {
+                    r = r.Append(array["@SP","M=M-1","A=M","D=M","A=A-1","M=M&D"]);                    
+            }
+            |"eq"=>
+            {
+                    r = r.Append(array["@SP","A=M-1","D=M","A=A-1","D=M-D","@IF_TRUE"+runLabelNum,"D;JEQ","D=0","@SP","A=M-1","A=A-1","M=D","@IF_FALSE"+runLabelNum,"0;JMP","(IF_TRUE"+runLabelNum+")","D=-1","@SP","A=M-1","A=A-1","M=D","(IF_FALSE"+runLabelNum+")","@SP","M=M-1"]);
+                    runLabelNum++;
+            }
+            |"gt"=>
+            {
+                    r = r.Append(array["@SP","A=M-1","D=M","A=A-1","D=M-D","@IF_TRUE"+runLabelNum,"D;JGT","D=0","@SP","A=M-1","A=A-1","M=D","@IF_FALSE"+runLabelNum,"0;JMP","(IF_TRUE"+runLabelNum+")","D=-1","@SP","A=M-1","A=A-1","M=D","(IF_FALSE"+runLabelNum+")","@SP","M=M-1"]);
+                    runLabelNum++;
+            }
+            |"lt"=>
+            {
+                    r = r.Append(array["@SP","A=M-1","D=M","A=A-1","D=M-D","@IF_TRUE"+runLabelNum,"D;JLT","D=0","@SP","A=M-1","A=A-1","M=D","@IF_FALSE"+runLabelNum,"0;JMP","(IF_TRUE"+runLabelNum+")","D=-1","@SP","A=M-1","A=A-1","M=D","(IF_FALSE"+runLabelNum+")","@SP","M=M-1"]);
+                    runLabelNum++;
+            }
+            |_=>r = r.Append(array[""]);
+        }
+
+        r;//returns r
+    }
+
+    private convertPushToHack(line:string,fileName:string):array[string]//if the command is push
+    {
+        mutable r=array["":string];
+        
+        def secondArg = line.Split(' ')[1];
+        def thirdArg = line.Split(' ')[2];
+
+        match(secondArg)//mach the atgumant
+        {
+        |""=>{}
+        |"local" => 
+        { 
+                r = r.Append(array["@" + thirdArg:string,"D=A","@1","A=M+D","D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"argument" => 
+        { 
+                    r  = r.Append(array["@" + thirdArg:string,"D=A","@2","A=M+D","D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"this" => 
+        { 
+                    r  = r.Append(array["@" + thirdArg:string,"D=A","@THIS","A=M+D","D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"that" => 
+        { 
+                    r  = r.Append(array["@" + thirdArg:string,"D=A","@THAT","A=M+D","D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"temp" => 
+        { 
+                    r  = r.Append(array["@" +5+ thirdArg:string,"D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"pointer" =>
+  
+        { 
+                    match(thirdArg)
+                    {
+                        |"0" => {r  = r.Append(array["@THIS","D=M","@SP","A=M","M=D","@SP","M=M+1"]);}
+                        |"1" => {r  = r.Append(array["@THAT","D=M","@SP","A=M","M=D","@SP","M=M+1"]);}
+                    }
+        }
+        |"static" => 
+        { 
+                    r  = r.Append(array["@" + fileName + "." + thirdArg:string,"D=M","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |"constant" => 
+        { 
+                    r  = r.Append(array["@" + thirdArg:string,"D=A","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |_=>r = r.Append(array[""]);
+        }
+
+        r;//returns r
+    }
+    
+    private convertPopToHach(command:string,fileName:string):array[string]//if the command is pop
+    {
+        mutable r = array["":string];//initializing the array
+
+        def secondCommand = command.Split(' ')[1];
+        def thirdArg = command.Split(' ')[2];
+
+        match(secondCommand)
+        {
+        |""=>{}
+        |"local" => 
+        { 
+            r = r.Append(array["@SP","A=M-1","D=M","@1","A=M"]);
+                    def temp=Convert.ToInt32(thirdArg);  //converting third arg to int for the loop                  
+                    foreach(i in [0 .. temp-1])
+                    {
+                        r = r.Append(array["A=A+1"]);
+                    }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"argument" => 
+        {
+            r = r.Append(array["@SP","A=M-1","D=M","@2","A=M"]);
+                    def temp=Convert.ToInt32(thirdArg);  //converting third arg to int for the loop                  
+                    foreach(i in [0 .. temp-1])
+                    {
+                        r = r.Append(array["A=A+1"]);
+                    }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"this" => 
+        {
+                    r = r.Append(array["@SP","A=M-1","D=M","@THIS","A=M"]);
+                    def temp=Convert.ToInt32(thirdArg);  //converting third arg to int for the loop                  
+                    foreach(i in [0 .. temp-1])
+                    {
+                        r = r.Append(array["A=A+1"]);
+                    }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"that" => 
+        {
+                    r = r.Append(array["@SP","A=M-1","D=M","@THAT","A=M"]);
+                    def temp=Convert.ToInt32(thirdArg);                    
+                    foreach(i in [0 .. temp-1])
+                    {
+                        r = r.Append(array["A=A+1"]);
+                    }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"temp" => 
+        {
+                  // def temp=Convert.ToInt32(thirdArg); 
+                    r = r.Append(array["@SP","A=M-1","D=M","@"+5+ thirdArg:string]);
+                                       
+                    //foreach(i in [0 .. temp-1])
+                   // {
+                    //    r = r.Append(array["A=A+1"]);
+                   // }
+                    r = r.Append(array["M=D","@SP","M=M-1"]);
+        }
+        |"pointer" =>
+        { 
+                    match(thirdArg)
+                    {
+                        |"0" => {r = r.Append(array["@SP","M=M-1","A=M","D=M","@THIS","M=D"]);}
+                        |"1" => {r = r.Append(array["@SP","M=M-1","A=M","D=M","@THAT","M=D"]);}
+                    }
+        }
+        |"static" => 
+        { 
+                    r = r.Append(array["@SP","M=M-1","A=M","D=M","@" + fileName + "." + thirdArg:string,"M=D"]);
+        }
+        |"constant" => 
+        { 
+                    r = r.Append(array["@" + thirdArg:string,"D=A","@SP","A=M","M=D","@SP","M=M+1"]);
+        }
+        |_=>r = r.Append(array[""]);//default
+        }
+
+        r;//returns r
+    }
 }

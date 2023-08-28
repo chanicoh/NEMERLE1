@@ -1,17 +1,121 @@
 ﻿using Nemerle.Collections;
 using Nemerle.Text;
 using Nemerle.Utility;
-
 using System;
 using System.Collections.Generic;
 using System.Console;
 using System.Linq;
+using System.IO;
+using System.Text;
+
+
 
 module Program
 {
-  Main() : void
+    //The global values ​​are defined so that they sum up the amount of purchases and the amount of salles
+     class MyGlobals
+     {
+         public static mutable buy : double = 0;
+         public static mutable cell : double = 0;
+         public static mutable path : string = @"C:\Users\chanacom\Desktop\NEMERLE\targil0";
+         
+         
+     }
+    
+     //public static  pathwritto= System.IO.StreamWriter(@"C:\Users\chanacom\Desktop\NEMERLE\targil0\tar0.asm");//global file to write in
+     
+    //Gets a product name and quantity and price and prints the product name and the amount to a file
+    
+     public static HandleBuy( ProductName :string, Amount : int , Price : double) : void{
+         mutable scum = Price*Amount;
+         MyGlobals.buy =  MyGlobals.buy + scum;
+         using (def sw = File.AppendText(MyGlobals.path) )
+                   {
+                       sw.WriteLine("### BUY " +ProductName+ " ###\n" +scum); //Outputs the name of the file
+                   }
+        // pathwritto.WriteLine("### BUY " +ProductName+ " ###\n" +scum);
+         
+         
+     }
+     //Gets a product name and quantity and price and prints the product name
+     public static HandleCell ( ProductName :string,Amount : int , Price : double) : void{
+         mutable scum = Price*Amount;
+         MyGlobals.cell =  MyGlobals.buy + scum;
+         using (def sw = File.AppendText(MyGlobals.path)) 
+                   {
+                       sw.WriteLine("$$$ CELL " +ProductName+ " $$$\n" +scum); //Outputs the name of the file
+                   }
+         //pathwritto.WriteLine("### CELL " +ProductName+ " ###\n" +scum);
+         
+     }
+  //Receives PATH and checks if the word starts with BUY or CELL and sends to the appropriate function  
+    
+     
+     public static WriteToFiles( path : string) : void
+    {
+     mutable thnfolder = path.Split('\\');
+     mutable namef = thnfolder.Last(); //The last name of the folder
+     MyGlobals.path =MyGlobals.path +"\\" +namef +".asm";
+     //def filePath = MyGlobals.path;
+     //def fileStream = System.IO.FileStream(filePath, FileMode.Create);
+     //def streamWriter = System.IO.StreamWriter(fileStream); 
+     //def file1 =System.IO.StreamReader(@"C:\Users\chanacom\Desktop\עקרונות שפות תוכנה\עקרונות שפות תוכנה\targilim\targil_0\Exc_0\Exc_0\hello.vm"); 
+      try 
+        {
+            def dirs = Directory.GetFiles(path, "*.vm");
+            foreach (dir  in dirs) 
+            {
+                mutable thename = dir.Split('\\');
+                mutable name = thename.Last();
+                mutable name1 =name.Split('.');
+                
+                 using (def sw = File.AppendText(MyGlobals.path)) 
+                   {
+                       sw.WriteLine(name1[0]); //Outputs the name of the file
+                   }
+               // pathwritto.WriteLine(name1[0]); //Outputs the name of the file
+                def file =System.IO.StreamReader(dir); 
+                mutable line = file.ReadLine();
+                
+                while(  line != null)  
+                       { 
+                        mutable FirstWord = line.Split(' ');
+                     
+                        if(FirstWord[0]=="buy")
+                            HandleBuy(FirstWord[1] , int.Parse(FirstWord[2]),  double.Parse(FirstWord[3]));
+                     else 
+                        if(FirstWord[0]=="cell")
+                              HandleCell(FirstWord[1] , int.Parse(FirstWord[2]),double.Parse(FirstWord[3]));
+                     else
+                          Console.WriteLine ("");
+                    line = file.ReadLine();
+                        }  
+            }
+            using (def sw = File.AppendText(MyGlobals.path)) //Print to a file the amount of purchases and sales
+                   {
+                       sw.WriteLine("TOTAL BUY: "+MyGlobals.buy); 
+                       sw.WriteLine("TOTAL CELL: "+MyGlobals.cell);
+                       Console.WriteLine("TOTAL BUY: "+MyGlobals.buy);
+                       Console.WriteLine("TOTAL CELL: "+MyGlobals.cell);
+                       
+                   }
+       }	
+        
+        catch
+        {
+             | e is System.ArgumentException =>
+                 Console.WriteLine ("a problem:\n%s\n", e.Message)
+        }
+    }
+    
+    
+    
+   Main() : void
   {
+   Program.WriteToFiles(@"C:\Users\chanacom\Desktop\NEMERLE\targil0");
     WriteLine("Hi!");
     _ = ReadLine();
+    }
   }
-}
+  
+  
