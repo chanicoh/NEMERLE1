@@ -1,0 +1,199 @@
+﻿using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+using System.Text.RegularExpressions;
+
+
+using System;
+using System.Collections.Generic;
+using System.Collections;
+using System.Console;
+using System.Linq;
+using System.IO.Directory;
+using System.IO;
+
+module Program
+{ 
+    static Main() : void
+    {
+        System.Console.WriteLine("Please enter folder path");        
+        def filePath=ReadLine();        
+        
+        //finding all the files in the folder which ends with .jack  
+        foreach (file in Directory.EnumerateFiles(filePath, "*.jack"))
+        {     
+            def fileName=Path.GetFileNameWithoutExtension(file);//only the file without extensions
+            def fileRead = System.IO.StreamReader(filePath+"\\"+fileName+".jack");
+            def fileWrite = System.IO.StreamWriter(filePath+"\\"+fileName+"T.xml");//creating a file with the same name just with xml ext
+            
+            fileWrite.WriteLine("<tokens>");         
+                                            
+            def convertAllLines():void
+            {
+                def line = fileRead.ReadLine();//reads only one line
+                
+                when(line!=null)
+                {
+                    if(line.StartsWith("// ") || line.IsEmpty() || line.Trim().Contains("/**") || line.TrimStart().StartsWith("* ") || line.EndsWith("*/"))//skipping all comments/empty rows
+                    {
+                        convertAllLines();
+                    }
+                    else if(line.Contains("//"))
+                    {    
+                        def splitLine=Regex.Split(line,"//")[0];
+                        def result=convertFromJacktoXml(splitLine); 
+                        
+                        //check if there is any words in the converted line so we need to add empty line in the T.xml file 
+                        foreach(word in result)
+                        {
+                            if(!word.IsEmpty())
+                            {
+                                fileWrite.WriteLine(word);
+                                System.Console.WriteLine(word); //!!!!!!!!!!!!!!!!!
+                            }
+                            else
+                            {}
+                        }
+
+                        convertAllLines();//repeat untill all commands are translated
+                    }
+                     else
+                    {    
+                        def result=convertFromJacktoXml(line); 
+                        
+                        //check if there is any words in the converted line so we need to add empty line in the T.xml file 
+                        foreach(word in result)
+                        {
+                            if(!word.IsEmpty())
+                            {
+                                fileWrite.WriteLine(word);
+                                System.Console.WriteLine(word); //!!!!!!!!!!!!!!!!!
+                            }
+                            else
+                            {}
+                        }
+
+                        convertAllLines();//repeat untill all commands are translated
+                    }
+                }
+            };
+            convertAllLines();
+            fileWrite.WriteLine("</tokens>");
+            fileWrite.Flush();
+
+        }
+
+        _=ReadLine();  
+    }
+
+    private convertFromJacktoXml(line:string):array[string]
+    {
+    mutable zover="";
+    mutable r=array["":string];
+    mutable flag=false;
+    mutable s="";
+    
+    foreach(c:char in line)
+    {
+        s=c.ToString();
+        //System.Console.Write(s);
+        if(!flag)
+        {
+            if(!checkIfSymbol(s) && (!(c.Equals('"')) && (!c.Equals(' '))))
+            {                
+                zover=zover+s.Trim();  
+            }
+            else{
+                //check type of zover
+                if(checkIfKeyword(zover.Trim()))
+                {
+                    zover=zover.ToString().TrimStart();
+                    r=r.Append(array["<keyword> "+zover+" </keyword>"]);
+                    zover="";
+                }
+                else if(checkIfInteger(zover))
+                        {   
+                             zover=zover.ToString();
+                             r=r.Append(array["<integerConstant> "+zover+" </integerConstant>"]);
+                             zover="";
+                        }
+                     else if(zover!="")
+                     {
+                         zover=zover.ToString();
+                         r=r.Append(array["<identifier> "+zover+" </identifier>"]);
+                         zover="";
+                     }
+                     else{}
+                //check type of c
+              if(checkIfSymbol(s))
+              {
+                  //zover=zover.ToString();
+                  if(s=="<") r=r.Append(array["<symbol> "+"&lt;"+" </symbol>"]);
+                  
+                     else if(s==">")   r=r.Append(array["<symbol> "+"&gt;"+" </symbol>"]);
+
+                        else if(s=="&")  r=r.Append(array["<symbol> "+"&amp;"+" </symbol>"]);
+
+                            else if(s=='"')   r=r.Append(array["<symbol> "+"&quet;"+" </symbol>"]);
+
+                                 else     r=r.Append(array["<symbol> "+s+" </symbol>"]);
+
+                  zover="";
+              }
+              else if (c.Equals(' ')){}
+                    else{flag=true;}// s= "
+            }
+        }
+        
+        
+        else//we had opening "
+        {
+            if(c!='"')
+            {
+                zover=zover+s;
+            }
+            else
+            {
+                zover=zover.ToString();
+                r=r.Append(array["<stringConstant> "+zover+" </stringConstant>"]);
+                flag=false;
+                zover="";
+            }
+        }//!!!!!!!!!!!!!!!!!!!!!!
+      }
+            r;
+
+    }
+   
+
+    
+    
+    private checkIfKeyword(word:string):bool
+    {
+        def keyword=array["class","constructor","function","method","field","static","var","int","char","boolean","void","true","false","null","this","let","do","if","else","while","return"];
+        
+        keyword.Contains(word);  
+    }
+    
+    private checkIfSymbol(word:string):bool
+    {
+        def symbol=array["{","}","(",")","[","]",".",",",";","+","-","*","/","&","|","<",">","=","~"];
+        
+        symbol.Contains(word);
+    }
+    
+    private checkIfInteger(word:string):bool
+    {
+        
+        if(word.StartsWith("1") || word.StartsWith("2") ||word.StartsWith("3") ||word.StartsWith("4") ||word.StartsWith("5") ||word.StartsWith("6") ||word.StartsWith("7") ||word.StartsWith("8") ||word.StartsWith("9") ||word.StartsWith("0") )
+        true;
+        else
+        false;
+        //if (word.GetType()==typeof(int))
+        //    true;
+        //  else
+        //    false;
+
+   }
+
+}

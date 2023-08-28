@@ -1,0 +1,514 @@
+﻿using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+
+using System.Text.RegularExpressions;
+using Nemerle.Imperative;//for return break and continue
+
+using System;
+using System.Collections.Generic;
+using System.Console;
+using System.Linq;
+using System.IO;
+using System.IO.FileAttributes;
+
+namespace nemerleEx05
+{
+  /// <summary>
+  /// Description of CompilationEngine.
+  /// </summary>
+  class CompilationEngine
+{
+    mutable jtoken:JackTokenizer;
+    mutable classSymbolTable:SymbolTableFuncs;
+    mutable methodSymbolTable:SymbolTableFuncs;
+    mutable curFileName:string;
+    mutable whileCounter:int;
+    mutable ifCounter:int;
+    mutable vmWriter:VMWriter;
+
+
+    public this(jFileName:string)             
+    {
+        jtoken = JackTokenizer(jFileName);    //tokenize
+        jtoken.fileTokenRead = StreamReader(jtoken.nameToken);
+        vmWriter = VMWriter(jtoken.nameJack);     //vmWriter
+        classSymbolTable = SymbolTableFuncs();//class Symbol Table
+        methodSymbolTable = SymbolTableFuncs();//method Symbol Table
+        curFileName = Path.GetFileNameWithoutExtension(jFileName);
+        Compileclass();
+        vmWriter.close();
+        jtoken.fileTokenRead.Close();
+    }
+
+    public kind(identifier:string):string
+    {
+        if(methodSymbolTable.isInTable(identifier))
+             methodSymbolTable.kindOf(identifier);
+        else if(classSymbolTable.isInTable(identifier))
+                 if(classSymbolTable.kindOf(identifier).Equals("field"))
+                      "this";
+                 else
+                     "static";                
+            else  "ERROR: CompilationEngine::kind";      
+
+            //"ERROR: CompilationEngine::kind"             
+    }
+
+    public index(identifier:string):int
+    {
+        if(methodSymbolTable.isInTable(identifier))
+            methodSymbolTable.indexOf(identifier);
+        else /* if(classSymbolTable.isInTable(identifier))                 
+                     classSymbolTable.indexOf(identifier) 
+             else */
+                 classSymbolTable.indexOf(identifier)
+    }
+
+    public Compileclass():void
+    {   
+        jtoken.advance(); // equals <tokens>
+        jtoken.advance(); //equals 'class'
+        jtoken.advance(); //equals 'className'
+        jtoken.advance(); //equals '{'
+        jtoken.advance(); //equals 'classVarDec* subroutineDec*'
+        while(jtoken.keyWordType().Equals("static")  || jtoken.keyWordType().Equals( "field"))
+        {
+            CompileclassVarDec();
+            jtoken.advance();
+        }
+        //subroutineDec*
+        while(jtoken.keyWordType().Equals("constructor")  || jtoken.keyWordType().Equals("function") || jtoken.keyWordType().Equals( "method"))
+        {
+            CompileSubroutineDec();
+        }
+        jtoken.advance();//'}'
+    }
+
+    public CompileTypeOrVoid():string
+    {
+        mutable error="Error";
+        if(jtoken.tokenType().Equals("KEYWORD"))
+            return jtoken.keyWordType();
+        else
+            return jtoken.identifierType();
+        error;
+    }
+
+    public CompileclassVarDec():void
+    {
+        mutable Kind =jtoken.keyWordType();
+        jtoken.advance();//equals ('static' | 'field' )
+        mutable Type =CompileTypeOrVoid();
+        jtoken.advance();//equals type
+        classSymbolTable.define(jtoken.identifierType(), Type, Kind);//varName
+        jtoken.advance();//equals (',' varName)* ';'
+        while(jtoken.symbolType().Equals( ","))//equals ','
+        {
+            jtoken.advance();//equals varName
+            classSymbolTable.define(jtoken.identifierType(), Type, Kind);//varName
+            jtoken.advance();
+        }
+    }
+
+    public CompileSubroutineDec():void
+    {
+        //reset Symbol table:
+        methodSymbolTable.startSubroutine();
+        whileCounter = 0;
+        ifCounter = 0;
+
+        mutable functionType = jtoken.keyWordType();//CompileTypeOrVoid();//('void' | 'type')
+        jtoken.advance();//equals (void' | type)
+
+        jtoken.advance();//equals subroutineName
+        mutable functionName = jtoken.identifierType();//subroutineName
+        when(functionType.Equals("method"))
+            methodSymbolTable.define("this", curFileName, "argument");
+        jtoken.advance();//equals '('
+        jtoken.advance();//equals parameterList* ')'
+        CompileParameterList();//parameterList
+        jtoken.advance();//equals ')'
+        CompileSubroutineBody(functionType, functionName);//subroutineBody
+    }
+
+    public CompileSubroutineBody(functionType:string, functionName:string):void
+    {
+        //the function start with: current token == '{'
+        jtoken.advance();//equals varDec*
+        while(jtoken.keyWordType().Equals("var"))//varDec
+            CompileVarDec();     
+        match(functionType)
+        {
+            |"constructor" =>
+                        vmWriter.writeFunction(curFileName + "." + functionName,methodSymbolTable.varCount("local"));
+                        vmWriter.writePush("constant", classSymbolTable.varCount("field"));
+                        vmWriter.writeCall("Memory.alloc",1);
+                        vmWriter.writePop("pointer", 0);
+            |"method" => 
+                        vmWriter.writeFunction(curFileName + "." + functionName,methodSymbolTable.varCount("local"));
+                        vmWriter.writePush("argument", 0);
+                        vmWriter.writePop("pointer", 0);
+            |"function" =>
+                    vmWriter.writeFunction(curFileName + "." + functionName,methodSymbolTable.varCount("local"));
+            |_=> 
+                    WriteLine("Error: CompileSuroutineBody");
+        }
+            //
+        CompileStatements();//statements
+        jtoken.advance();// equals '}'
+    }
+
+    public CompileParameterList():void
+    {
+        if(!jtoken.symbolType().Equals( ")" ))//if its not equal,its mean there are parameters ,ex' where its equal:"function main()"
+        {
+            mutable Type = CompileTypeOrVoid();//type
+            jtoken.advance();//equals varName
+            methodSymbolTable.define(jtoken.identifierType(), Type, "argument"); //varName
+            jtoken.advance();
+            while(jtoken.symbolType().Equals(","))//equals (',' type varName)*
+            {
+                jtoken.advance();
+                Type = CompileTypeOrVoid();//type
+                jtoken.advance();
+                methodSymbolTable.define(jtoken.identifierType(), Type, "argument");//varName
+                jtoken.advance();
+            }
+        }else{}
+    }
+
+    public CompileVarDec():void
+    {
+        //current token equals 'var'
+        jtoken.advance();//equals type
+        mutable Type = CompileTypeOrVoid();//type
+        jtoken.advance();//equals varName
+        methodSymbolTable.define(jtoken.identifierType(), Type, "local");//varName
+        jtoken.advance();//equals (',' varName)* ';'
+
+        while(jtoken.symbolType().Equals(","))//(',' varName)*
+        {
+            jtoken.advance();//equals ','
+            methodSymbolTable.define(jtoken.identifierType(), Type, "local");//varName
+            jtoken.advance();
+        }
+        jtoken.advance();
+    }
+
+    public CompileStatements():void
+    {
+        while(jtoken.tokenType().Equals("KEYWORD"))
+        {
+            match(jtoken.keyWordType())
+            {
+                |"let" => Compilelet();
+                |"if" => Compileif();
+                |"while" => Compilewhile();
+                |"do" => Compiledo();
+                |"return" => Compilereturn();
+                |_=>{};
+            }
+        }
+    }
+
+    public Compiledo():void
+    {
+        jtoken.advance();// equals 'do'
+        CompileSubroutineCall("");//subroutineCall
+        jtoken.advance();//';'
+        vmWriter.writePop("temp", 0);
+    }
+
+    public Compilelet():void
+    {
+        //current token equals 'let'
+        jtoken.advance();//current token == varName
+        mutable Kind = kind(jtoken.identifierType());
+        mutable Index = index(jtoken.identifierType());
+        jtoken.advance();//equals('[' expression ']')? '='
+        if(jtoken.symbolType().Equals( "["))//('[' expression ']')?
+        {
+            jtoken.advance();//equals '[' 
+            CompileExpression();
+            vmWriter.writePush(Kind, Index);
+            vmWriter.writeArithmetic("add");
+            jtoken.advance();//equals ']'
+            jtoken.advance();//equals '='
+            CompileExpression();//expression
+            jtoken.advance();//equals ';'
+            vmWriter.writePop("temp", 0);
+            vmWriter.writePop("pointer", 1);
+            vmWriter.writePush("temp", 0);
+            vmWriter.writePop("that", 0);
+        }
+        else
+        {
+            jtoken.advance();//current token = expression
+            CompileExpression();
+            jtoken.advance();//equals ';'
+            vmWriter.writePop(Kind, Index);
+        }
+
+
+    }
+
+    public Compilewhile():void
+    {
+        mutable counter = whileCounter.ToString();
+        whileCounter++;
+        jtoken.advance();//equals 'while'
+        jtoken.advance();//equals '('
+        vmWriter.writeLabel("WHILE_EXP" + counter);
+        CompileExpression();//expression
+        vmWriter.writeArithmetic("not");
+        vmWriter.writeIfGoto("WHILE_END" + counter);
+        jtoken.advance();//equals ')'
+        jtoken.advance();//equals '{'
+        CompileStatements();//statements
+        jtoken.advance();//equals '}'
+        vmWriter.writeGoto("WHILE_EXP" + counter);
+        vmWriter.writeLabel("WHILE_END" + counter);
+    }
+
+    public Compilereturn():void
+    {
+        jtoken.advance();//equals 'return'
+        if(!jtoken.symbolType().Equals(";"))
+        {
+            CompileExpression();//expression
+            jtoken.advance();//equals ';'
+        }
+        else
+        {
+            jtoken.advance();//equals ';'
+            vmWriter.writePush("constant", 0);
+        }        
+        vmWriter.writeReturn();         
+    }
+
+    public Compileif():void
+    {
+        mutable counter =ifCounter.ToString();
+        ifCounter++;
+        jtoken.advance();//equals if
+        jtoken.advance();//equals '('
+        CompileExpression();       
+        vmWriter.writeIfGoto("IF_TRUE" + counter);   
+        vmWriter.writeGoto("IF_FALSE" + counter);
+        vmWriter.writeLabel("IF_TRUE" + counter);
+        
+        jtoken.advance();//equals ')'
+        jtoken.advance();//equals '{'
+        CompileStatements();        
+        jtoken.advance();//equals '}'
+        if(jtoken.keyWordType().Equals("else"))
+        {
+            vmWriter.writeGoto("IF_END" + counter);
+            vmWriter.writeLabel("IF_FALSE" + counter);
+            jtoken.advance();//equals 'else'
+            jtoken.advance();//equals '{'
+            CompileStatements();
+            jtoken.advance();//equals '}'
+            vmWriter.writeLabel("IF_END" + counter);
+        }
+        else
+        {
+            vmWriter.writeLabel("IF_FALSE" + counter);
+        }
+    }
+
+    public CompileExpression():void
+    {
+        CompileTerm();//term
+        while(jtoken.isopr())
+        {
+            mutable temp = jtoken.symbolType();
+            jtoken.advance();
+            CompileTerm();
+            match(temp)
+            {
+                |"+" =>
+                    vmWriter.writeArithmetic("add");
+                |"-" =>    
+                    vmWriter.writeArithmetic("sub");
+                |"*" =>    
+                    vmWriter.writeCall("Math.multiply", 2);
+                |"/" =>    
+                    vmWriter.writeCall("Math.divide", 2);
+                |"|" =>    
+                    vmWriter.writeArithmetic("or");
+                |"&amp;" =>    
+                    vmWriter.writeArithmetic("and");
+                |"&lt;" =>    
+                    vmWriter.writeArithmetic("lt");
+                |"&gt;" =>    
+                    vmWriter.writeArithmetic("gt");
+                |"=" =>
+                    vmWriter.writeArithmetic("eq");
+            }
+        }
+    }
+
+    public CompileTerm():void
+    {
+        match(jtoken.tokenType())
+        {
+            |"INT_CONST" =>
+            {
+                    mutable value = jtoken.intVal();
+                    vmWriter.writePush("constant", value);
+                    jtoken.advance();
+            } 
+            |"KEYWORD" =>
+            {
+                    mutable value = jtoken.keyWordType();
+                    match(value)
+                    {
+                        |"false"|"null" =>
+                                vmWriter.writePush("constant", 0);
+                        |"true" =>
+                            vmWriter.writePush("constant", 0);
+                            vmWriter.writeArithmetic("not");
+                        |"this" =>
+                            vmWriter.writePush("pointer", 0);
+                        |_ => WriteLine("Error is in CompileTerm function");
+                    }
+                    jtoken.advance();
+            } ; 
+            |"STRING_CONST"=>
+            {
+
+                    mutable value = jtoken.stringVal();
+                    vmWriter.writePush("constant", value.Length);
+                    vmWriter.writeCall("String.new", 1);
+                    foreach(i in [0..value.Length-1])
+                    {
+                        vmWriter.writePush("constant",System.Convert.ToInt32(value[i]));
+                        vmWriter.writeCall("String.appendChar", 2);
+                    }
+                    jtoken.advance();
+            } ;
+            |"IDENTIFIER" =>
+            {
+                    mutable name = jtoken.identifierType();
+                    jtoken.advance();
+                    match(jtoken.symbolType())
+                    {
+                    |"[" =>
+                    {
+                                jtoken.advance();//[
+                                CompileExpression();
+                                jtoken.advance();//]
+                                vmWriter.writePush(kind(name), index(name));
+                                vmWriter.writeArithmetic("add");
+                                vmWriter.writePop("pointer", 1);
+                                vmWriter.writePush("that", 0);
+                    }
+                    |"("|"." =>
+                    {
+                                CompileSubroutineCall(name);
+                    }
+                    |_=>
+                    {
+                                vmWriter.writePush(kind(name), index(name));
+                    }
+                    }
+            } ; 
+            
+            |"SYMBOL" =>
+            {
+                    match(jtoken.symbolType())
+                    {
+                    |"(" =>
+                    {
+                                jtoken.advance();
+                                CompileExpression();
+                                jtoken.advance();
+                    }
+                    |"-" =>
+                    {
+                                jtoken.advance();
+                                CompileTerm();
+                                vmWriter.writeArithmetic("neg");
+                    }
+                    |"~" =>
+                    {
+                                jtoken.advance();
+                                CompileTerm();
+                                vmWriter.writeArithmetic("not");
+                    }
+                  
+                    |_ =>{}
+                    }
+            }
+        } 
+    } 
+
+    public CompileSubroutineCall(name:string):void
+    {
+        mutable n = name;
+        if(name.Equals(""))
+        {
+            n = jtoken.identifierType();
+            jtoken.advance();//subroutineName
+
+        }
+        else{}
+        mutable subroutineFullName:string;
+        mutable numOfArgs = 0;
+        if(jtoken.symbolType().Equals("."))
+             {
+                 jtoken.advance();//'.'
+                 mutable ClassOrVarName = n;
+                 mutable subroutineName = jtoken.identifierType();//subroutineName
+                 if(methodSymbolTable.isInTable(ClassOrVarName))
+                 {
+                     subroutineFullName = methodSymbolTable.typeOf(ClassOrVarName) + "." + subroutineName;
+                     vmWriter.writePush(kind(ClassOrVarName),index(ClassOrVarName));
+                     numOfArgs++;
+                 }
+                 else if(classSymbolTable.isInTable(ClassOrVarName))
+                      {
+                          subroutineFullName = classSymbolTable.typeOf(ClassOrVarName) + "." + subroutineName;
+                          vmWriter.writePush(kind(ClassOrVarName),index(ClassOrVarName));
+                          numOfArgs++;
+                      }
+                      else
+                      {
+                          subroutineFullName = ClassOrVarName + "." + subroutineName;
+                      }
+                 jtoken.advance();//subroutineName
+             }
+             else
+             {
+                 subroutineFullName = curFileName + "." + n;
+                 vmWriter.writePush("pointer", 0);
+                 numOfArgs++;
+             }
+             jtoken.advance();//equals '('
+             numOfArgs = numOfArgs + CompileExpressionList(); 
+             jtoken.advance();//equals  ')'
+             vmWriter.writeCall(subroutineFullName, numOfArgs);
+    }
+
+
+    public CompileExpressionList():int
+    {
+        when(!jtoken.symbolType().Equals(")"))
+        {
+            CompileExpression();//expression
+            mutable numOfExpressions = 1;
+
+            while(jtoken.symbolType().Equals( ","))
+            {
+                jtoken.advance();//equals  ','
+                CompileExpression();//expression
+                numOfExpressions++;
+            }
+            return numOfExpressions;
+        }
+        0
+    }
+}
+}

@@ -1,0 +1,97 @@
+﻿using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+using Nemerle.Imperative;
+
+using System;
+using System.Collections.Generic;
+using System.Console;
+using System.Text.RegularExpressions;
+using System.Linq;
+using System.IO;
+using System.IO.FileAttributes;
+
+namespace nemerleEx05
+{
+  /// <summary>
+  /// Description of SymbolTable.
+  /// </summary>
+    
+
+struct Symbol
+{
+    public mutable Type:string;//className / int / date ect.
+    public mutable Kind:string;//static field arg var
+    public mutable Index:int;
+}    
+    
+class SymbolTable
+{
+    public mutable table = Dictionary.[string, Symbol]();
+    public mutable kindIndices = Dictionary.[string, int]();
+}
+
+class SymbolTableFuncs
+{
+    mutable t:SymbolTable;
+    
+    public this()
+    {
+        t = SymbolTable();     
+    }
+    
+    public startSubroutine():void
+    {
+        t = SymbolTable(); 
+    }
+    
+    public define(name:string,type:string,kind:string):void//checks if the object is not in the table and adds it. also increase the index kind
+    {
+        mutable try1,try2;
+        when(!t.kindIndices.TryGetValue(kind, out try1))
+        {
+            t.kindIndices.Add(kind, 0);
+        }
+        mutable index = varCount(kind);
+        mutable temp:Symbol;
+        temp.Type = type;
+        temp.Kind = kind;
+        temp.Index = index;
+        when(!t.table.TryGetValue(name, out try2)){
+            t.table.Add(name,temp);
+        }
+        t.kindIndices[kind]++;
+    }
+    
+    public varCount(kind:string):int
+    {
+        mutable test;
+        when(t.kindIndices.TryGetValue(kind ,out test)){
+            return t.kindIndices[kind];
+        }
+        0    
+    }
+    
+    public kindOf(name:string):string
+    {
+        t.table[name].Kind
+    }
+    
+    public typeOf(name:string):string
+    {
+        t.table[name].Type
+    }
+    
+    public indexOf(name:string):int
+    {
+        t.table[name].Index
+    }
+    
+    public isInTable(name:string):bool
+    {
+        mutable test;
+        t.table.TryGetValue(name, out test)// checks if the table contains the argument by its name
+    }
+
+}
+}

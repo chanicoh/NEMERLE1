@@ -1,0 +1,207 @@
+﻿using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+
+using System.Text.RegularExpressions;
+using Nemerle.Imperative;//for return break and continue
+
+using System;
+using System.Collections.Generic;
+using System.Console;
+using System.Linq;
+using System.IO;
+using System.IO.FileAttributes;
+
+namespace nemerleEx05
+{
+/// <summary>
+/// Description of JackTokenizer.
+/// </summary>
+
+    class JackTokenizer
+    {
+        public mutable fileJack:StreamReader;//original jack file
+        public mutable fileTokenRead:StreamReader;//read token file
+        public mutable fileTokenWrite:StreamWriter;//write token file    
+        public mutable nameJack:string;
+        public mutable nameToken:string;
+        public mutable allWords:string;//all the kind of words - keyword/symbol/integer/string/identifier
+        public mutable curToken:string;
+        public mutable keyword = @"(?<keyword>class|constructor|function|method|field|static|var|int|char|boolean|void|true|false|null|this|let|do |if|else|while|return)|";
+        public mutable symbol = @"(?<symbol>\{|\}|\(|\)|\[|\]|\.|\,|\;|\+|\-|\*|\/|\&|\||\<|\>|\=|\~)|";
+        public mutable integerConstant = @"(?<integerConstant>(3276[0-7]|327[0-5]\d|32[0-6]\d{2}|3[01]\d{3}|[12]\d{4}|[1-9]\d{3}|[1-9]\d{2}|[1-9]\d|\d))|";
+        public mutable stringConstant = "(?<stringConstant>\\\".*\")";
+        public mutable identifier = @"(?<identifier>[a-zA-Z][a-zA-Z0-9]*(_[a-zA-Z][a-zA-Z0-9]*)*)|";
+
+
+        public this(jackFileName:string)
+        {
+            this.nameJack = jackFileName;
+            fileJack = StreamReader(jackFileName);
+            nameToken = Path.GetDirectoryName(jackFileName) + @"\" + Path.GetFileNameWithoutExtension(jackFileName) + "T.xml";
+            fileTokenWrite = StreamWriter(nameToken);
+            allWords = keyword + identifier + integerConstant + symbol + stringConstant;
+            removeComments();//remove comments from fileJack2
+            fileJack = StreamReader("jack2.jack");
+            tokenize();//on filejack2
+            fileJack .Close();
+            fileTokenWrite.Close();
+        }
+
+        public removeComments():void
+        {
+            mutable jack2 =StreamWriter("jack2.jack");
+            mutable fileJack = "";
+            fileJack = File.ReadAllText(nameJack);
+            mutable re = @"(@(?:""[^""]*"")+|'(?:[^'\n\\]+|\\.)*')|//.*|/\*(?s:.*?)\*/";
+            mutable reg =Regex(re,RegexOptions.Multiline);
+            mutable file =reg.Replace(fileJack,"");
+            jack2.Write(file);    
+            jack2.Close();
+        }
+
+        public tokenize():void
+        {
+            fileTokenWrite.WriteLine("<tokens>");
+            mutable line:string;
+            while(!fileJack.EndOfStream)
+            {
+                line = fileJack.ReadLine();
+                mutable reg = Regex(allWords);
+                mutable matche = reg.Matches(line);            
+                foreach(mat is Match in matche)
+                {
+                    mutable i = 0;
+                    foreach ( g is Group in mat.Groups)
+                    {
+                        mutable matValue = g.Value;
+                        mutable success = g.Success;
+                        if ( success && i > 1)
+                        {
+                            mutable gName = reg.GroupNameFromNumber(i);
+                            if(gName == "stringConstant")
+                            {//remove "
+                                matValue = matValue.TrimEnd('\"');
+                                matValue = matValue.TrimStart('\"');   
+                            }
+                            else if(gName == "symbol")
+                                 {
+                                     if(matValue == "<")
+                                         matValue = @"&lt;";
+                                     else if(matValue == ">")
+                                              matValue = @"&gt;";
+                                          else if(matValue == "&")
+                                                   matValue = @"&amp;";
+                                               else{}
+                                 }
+                                 else{}
+                            mutable regNum = Regex(@"\d+");
+                            mutable isnum =regNum.IsMatch(gName);
+                            when(!isnum)
+                                fileTokenWrite.WriteLine("<" + gName + "> " + matValue + " </" + gName + "> ");
+                        }else{}
+                        i++;
+                    }
+                }
+            }
+            fileTokenWrite.WriteLine("</tokens>");      
+        }
+
+        public  advance():void
+        {
+            curToken = fileTokenRead.ReadLine();
+        }
+
+        public tokenType():string
+        { 
+            def c = array[' '];
+            mutable s = curToken.Split(c);
+            s[0] =s[0].TrimEnd('>');
+            s[0] =s[0].TrimStart('<');
+            mutable str="";
+            match(s[0])
+            {
+                |"keyword" => str="KEYWORD";
+                |"symbol" => str="SYMBOL";
+                |"identifier" => str="IDENTIFIER";
+                |"integerConstant" => str="INT_CONST";
+                |"stringConstant" => str="STRING_CONST";
+                |_ =>str="ERROR";
+            }
+            str;
+        }   
+        
+        public keyWordType():string
+        {
+            if(tokenType() != "KEYWORD")
+                return "ERROR";
+            else{}
+            def c = array[' '];
+            mutable s = curToken.Split(c);
+            mutable str="ERROR";
+            match(s[1])
+            {   
+                |"class" => str="class";
+                | "constructor" => str="constructor";
+                | "function" => str="function";
+                | "method" => str="method";
+                | "field" => str="field";
+                | "static" => str="static";
+                | "var" => str="var";
+                | "int" => str="int";
+                | "char" => str="char";
+                | "boolean" => str="boolean";
+                | "void" => str="void";
+                | "true" => str="true";
+                | "false" => str="false";
+                | "null" => str="null";
+                | "this" => str="this";
+                | "let" => str="let";
+                | "do" => str="do";
+                | "if" => str="if";
+                | "else" => str="else";
+                | "while" => str="while";
+                | "return"=> str="return";
+            }
+            str;
+        }
+        
+        public symbolType():string
+        {
+            def c = array[' '];
+            mutable s = curToken.Split(c);
+            s[1];
+        }
+        
+        public identifierType():string
+        {
+            def c = array[' '];
+            mutable s = curToken.Split(c);
+            s[1];
+        }
+        
+        public intVal():int
+        {
+            def c = array[' '];
+            mutable s = curToken.Split(c);
+            Int32.Parse(s[1]);
+        }
+        public stringVal():string
+        {
+            mutable s = curToken;
+            s = s.Replace("<stringConstant>", "");
+            s = s.Replace("</stringConstant>", "");
+            s = s.Trim();
+            s;   
+        }
+        public isopr():bool
+        {
+            match(symbolType())
+            {
+            | "+"|"-"|"*"|"/"|"&"|"|"|"&lt;"|"&gt;"|"="|"&amp;" =>  true;
+            | _=> false;
+            }
+        }
+
+    }
+}

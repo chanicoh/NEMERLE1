@@ -1,0 +1,76 @@
+﻿using Nemerle;
+using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace nemerleEx05
+{
+  /// <summary>
+  /// Description of VMWriter.
+  /// </summary>
+  class VMWriter
+{
+    mutable vmFile:StreamWriter;
+    
+    public this(jackFileName:string)
+    {
+        vmFile = StreamWriter(jackFileName.Replace("jack","vm"));
+    }
+    
+    public writePush(segment:string,index:int):void
+    {
+        vmFile.WriteLine("push " + segment + " " + index.ToString());   
+    }
+    
+    public writePop(segment:string,index:int):void
+    {
+        vmFile.WriteLine("pop " + segment + " " + index.ToString());   
+    }
+    
+    public writeLabel(label:string):void
+    {
+        vmFile.WriteLine("label " + label);    
+    }
+    
+    public writeIfGoto(label:string):void
+    {
+        vmFile.WriteLine("if-goto " + label);
+    }
+    
+    public writeGoto(label:string):void
+    {
+        vmFile.WriteLine("goto " + label);
+    }
+        
+    public writeArithmetic(command:string):void
+    {
+        vmFile.WriteLine(command);       
+    }   
+       
+    public writeCall(name:string,nArgs:int):void
+    {
+        vmFile.WriteLine("call " + name + " " + nArgs.ToString());
+    }
+    
+    public writeFunction(name:string,nLocals:int):void
+    {
+        vmFile.WriteLine("function " + name + " " + nLocals.ToString());
+    }
+    
+    public writeReturn():void
+    {
+        vmFile.WriteLine("return");
+    }
+    
+    public close():void
+    {
+        vmFile.Close();
+    }
+}
+
+}

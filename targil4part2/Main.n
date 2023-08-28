@@ -1,0 +1,524 @@
+﻿using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+
+using System;
+using System.Collections.Generic;
+using System.Collections;
+using System.Console;
+using System.Linq;
+using System.IO.Directory;
+using System.IO;
+
+module Program
+{         
+    mutable rFinal=array["":string];
+    mutable linesC=2;//lines counter
+    mutable revach=0;//lirevachnes counter
+
+    static Main() : void
+    {
+        System.Console.WriteLine("Please enter folder path");        
+        def filePath=ReadLine();
+
+        //finding all the files in the folder which ends with .jack  
+        foreach (file in Directory.EnumerateFiles(filePath, "*.xml"))
+        {  
+            rFinal=array["":string];
+            linesC=2;//lines counter
+            revach=0;//lirevachnes counter
+            def fileName=Path.GetFileNameWithoutExtension(file);//only the file without extensions
+            def fileRead = System.IO.StreamReader(filePath+"\\"+fileName+".xml");
+            def fileWrite = System.IO.StreamWriter(filePath+"\\"+fileName+"P.xml");//creating a file with the same name just with xml ext
+
+            mutable fileArray=array["":string];  
+            mutable line=fileRead.ReadLine();//.ToString();
+            while(line!=null){
+                fileArray=fileArray.Append(array[line]);
+                line=fileRead.ReadLine();//.ToString();
+            }
+
+            convertArray(fileArray);
+            foreach(var in rFinal){
+                  if (var == " ")
+                     {
+                        fileWrite.Write(" ");
+                        Console.Write(" ");
+                     }
+                  else  {
+                  
+                     if (var != "")
+                     {
+                         fileWrite.WriteLine(var);
+                         Console.WriteLine(var);
+                     } 
+                     else
+                     Console.Write("");
+                 }
+                     
+            }            
+            fileWrite.Flush();
+
+        }
+
+        _=ReadLine();
+        rFinal=array["":string];
+    }
+
+
+    private convertArray(fileArray:array[string]):array[string]
+    { 
+       rFinal=array["":string];
+        parseClass(fileArray);
+        rFinal;
+    }
+
+    private parseClass(fileArray:array[string]):array[string]
+    { 
+     foreach (_ in $[1..revach]) {
+           rFinal=rFinal.Append(array[" "]);
+        }
+        rFinal=rFinal.Append(array["<class>"]);
+        revach++;
+        getNextToken(fileArray);//"class"
+        getNextToken(fileArray);//className
+        getNextToken(fileArray);// "{"       
+        parseClassVarDec(fileArray);        
+        parseSubroutineDec(fileArray);        
+        getNextToken(fileArray);// "}" 
+        revach--;
+        revach--;
+         foreach (_ in $[0..revach]) {
+           rFinal=rFinal.Append(array[" "]);
+        }
+        rFinal=rFinal.Append(array["</class>"]);
+        rFinal;
+    }
+
+    private parseClassVarDec(fileArray:array[string]):void
+    {
+        while (CheckNextTokenMiddle(fileArray)=="static" || CheckNextTokenMiddle(fileArray)=="field"){
+           foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+            rFinal=rFinal.Append(array["<classVarDec>"]);  
+            revach+=2;
+            getNextToken(fileArray);//"static/field"
+            getNextToken(fileArray);//type
+            getNextToken(fileArray);// varName              
+            while (CheckNextTokenMiddle(fileArray)==","){
+               getNextToken(fileArray); // <symbol> , </symbol>
+               getNextToken(fileArray);// <identifier> y </identifier>
+            }            
+            getNextToken(fileArray);// <symbol> ; </symbol> 
+            revach--;
+            revach--;
+             foreach (_ in $[0..revach]) {
+           rFinal=rFinal.Append(array[" "]);
+        }
+            rFinal=rFinal.Append(array["</classVarDec>"]);
+            
+        }
+    }
+
+    private parseSubroutineDec(fileArray:array[string]):void
+    {
+        while (CheckNextTokenMiddle(fileArray)=="constructor" || CheckNextTokenMiddle(fileArray)=="function" || CheckNextTokenMiddle(fileArray)=="method"){
+           foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+            rFinal=rFinal.Append(array["<subroutineDec>"]);
+             
+            revach+=2;
+            getNextToken(fileArray);//"constructor/function/method"
+            getNextToken(fileArray);//"void/type"
+            getNextToken(fileArray);// subroutineName
+            getNextToken(fileArray);// " ( "
+            parameterList(fileArray);
+            getNextToken(fileArray);// " ) "
+            subroutineBody(fileArray);
+            revach--;
+            revach--;
+             foreach (_ in $[0..revach]) {
+           rFinal=rFinal.Append(array[" "]);
+        }
+            rFinal=rFinal.Append(array["</subroutineDec>"]);
+
+        }
+    }
+
+    private parameterList(fileArray:array[string]):void
+    {
+         foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<parameterList>"]);
+        
+            revach+=2;
+        if (CheckNextTokenMiddle(fileArray)=="int" || CheckNextTokenMiddle(fileArray)=="char" || CheckNextTokenMiddle(fileArray)=="boolean" || CheckNextTokenFirst(fileArray)=="<identifier>"){            
+            getNextToken(fileArray);//type
+            getNextToken(fileArray);// varName              
+            while (CheckNextTokenMiddle(fileArray)==","){
+                getNextToken(fileArray); // <symbol> , </symbol>
+                getNextToken(fileArray);//type
+                getNextToken(fileArray);// <identifier> y </identifier>
+            }            
+        }
+        else{}
+         revach--;
+         revach--;
+         foreach (_ in $[0..revach]) {
+           rFinal=rFinal.Append(array[" "]);
+        }
+        rFinal=rFinal.Append(array["</parameterList>"]);
+        
+    }
+
+    private subroutineBody(fileArray:array[string]):void
+    {
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<subroutineBody>"]);
+         
+            revach+=2;
+        getNextToken(fileArray);//" { "
+        varDec(fileArray);
+        statements(fileArray);
+        getNextToken(fileArray);//" } "
+        revach--;
+        revach--;
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</subroutineBody>"]);
+        
+    }
+//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+    private statements(fileArray:array[string]):void
+    {
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<statements>"]);
+         
+            revach+=2;
+        while(CheckNextTokenFirst(fileArray)=="<keyword>"){
+            mutable s=CheckNextTokenMiddle(fileArray);
+            match(s)
+            {
+                |"let"=>{letStatement(fileArray);}
+                |"if"=>{ifStatement(fileArray);}
+                |"while"=>{whileStatement(fileArray);}
+                |"do"=>{doStatement(fileArray);}
+                |"return"=>{returnStatement(fileArray);}
+                |_=>{}
+            }
+        }
+        revach--;
+        revach--;
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</statements>"]);
+
+    }
+
+    private letStatement(fileArray:array[string]):void
+    {
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<letStatement>"]);
+         
+            revach+=2;
+        getNextToken(fileArray);//" let "
+        getNextToken(fileArray);//varName
+        if(CheckNextTokenMiddle(fileArray)=="["){
+            getNextToken(fileArray);//" [ "
+            expression(fileArray);
+            getNextToken(fileArray);//" ] "
+        }
+        else{};
+        getNextToken(fileArray);//" = "
+        expression(fileArray);
+        getNextToken(fileArray);//" ; "
+        revach--;
+        revach--;
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</letStatement>"]);
+        
+    }
+
+    private ifStatement(fileArray:array[string]):void
+    {
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<ifStatement>"]);
+         
+            revach+=2;
+        getNextToken(fileArray);//" if "
+        getNextToken(fileArray);//" ( "
+        expression(fileArray);
+        getNextToken(fileArray);//" ) "
+        getNextToken(fileArray);//" { "
+        statements(fileArray);
+        getNextToken(fileArray);//" } "        
+        if(CheckNextTokenMiddle(fileArray)=="else"){
+            getNextToken(fileArray);//" else "
+            getNextToken(fileArray);//" { "
+            statements(fileArray);
+            getNextToken(fileArray);//" } "
+        }
+        else{}
+        revach--;
+        revach--;
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</ifStatement>"]);
+        
+    }
+
+    private whileStatement(fileArray:array[string]):void
+    {
+         foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<whileStatement>"]);
+        
+            revach+=2;
+        getNextToken(fileArray);//" while "
+        getNextToken(fileArray);//" ( "
+        expression(fileArray);
+        getNextToken(fileArray);//" ) "
+        getNextToken(fileArray);//" { "
+        statements(fileArray);
+        getNextToken(fileArray);//" } " 
+        revach--;
+         revach--;
+         foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</whileStatement>"]);
+        
+    }
+
+    private doStatement(fileArray:array[string]):void
+    {
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<doStatement>"]);
+         
+            revach+=2;
+        getNextToken(fileArray);//" do "
+        subroutineCall(fileArray);
+        getNextToken(fileArray);//" ; "
+        revach--;
+        revach--;
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</doStatement>"]);
+        
+    }
+
+    private returnStatement(fileArray:array[string]):void
+    {
+         foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<returnStatement>"]);
+        
+            revach+=2;
+        getNextToken(fileArray);//" return "
+        if(CheckNextTokenMiddle(fileArray)!=";"){
+            expression(fileArray);
+        }
+        else{}
+        getNextToken(fileArray);//" ; "
+        revach--;
+        revach--;
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</returnStatement>"]);
+        
+    }
+
+    private expression(fileArray:array[string]):void
+    {
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<expression>"]);
+         
+            revach+=2;
+        term(fileArray);
+        while(CheckNextTokenMiddle(fileArray)=="+" || CheckNextTokenMiddle(fileArray)=="-" || CheckNextTokenMiddle(fileArray)=="*" || CheckNextTokenMiddle(fileArray)=="/" || CheckNextTokenMiddle(fileArray)=="&amp;" || CheckNextTokenMiddle(fileArray)=="|" || CheckNextTokenMiddle(fileArray)=="&lt;" || CheckNextTokenMiddle(fileArray)=="&gt;" || CheckNextTokenMiddle(fileArray)=="="){
+            op(fileArray);
+            term(fileArray);
+        }
+        revach--;
+        revach--;
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</expression>"]);
+        
+    }
+
+    private term(fileArray:array[string]):void
+    {
+         foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<term>"]);
+        
+            revach+=2;
+        if(CheckNextTokenFirst(fileArray)=="<integerConstant>" || CheckNextTokenFirst(fileArray)=="<stringConstant>" || CheckNextTokenMiddle(fileArray)=="true" || CheckNextTokenMiddle(fileArray)=="false" || CheckNextTokenMiddle(fileArray)=="null" || CheckNextTokenMiddle(fileArray)=="this"){//int/string/keywordConstant
+            getNextToken(fileArray);
+        }
+        else if(CheckNextTokenFirst(fileArray)=="<identifier>" && fileArray[linesC+1].Split(' ')[1]=="["){// array
+            getNextToken(fileArray);//varName
+            getNextToken(fileArray);//" [ "
+            expression(fileArray);
+            getNextToken(fileArray);//" ] "
+        }
+        else if(CheckNextTokenFirst(fileArray)=="<identifier>" && fileArray[linesC+1].Split(' ')[1]=="(" || CheckNextTokenFirst(fileArray)=="<identifier>" && fileArray[linesC+1].Split(' ')[1]=="."){//subroutineCall
+            subroutineCall(fileArray);
+        }
+        else if(CheckNextTokenMiddle(fileArray)=="("){ // '(' expression ')'
+            getNextToken(fileArray);//" ( "
+            expression(fileArray);
+            getNextToken(fileArray);//" ) "
+        }
+        else if(CheckNextTokenMiddle(fileArray)=="-" || CheckNextTokenMiddle(fileArray)=="~"){//unaryOp term
+            unaryOp(fileArray);
+            term(fileArray);
+        }
+        else{//varName
+            getNextToken(fileArray);
+        }
+          revach--;
+          revach--;
+         foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</term>"]);
+
+    }
+
+    private subroutineCall(fileArray:array[string]):void
+    {
+        //rFinal=rFinal.Append(array["<subroutineCall>"]);
+        if(fileArray[linesC+1].Split(' ')[1]=="("){
+            getNextToken(fileArray);//subroutineName
+            getNextToken(fileArray);//" ( "
+            expressionList(fileArray);
+            getNextToken(fileArray);//" ) "
+        }
+        else{
+            getNextToken(fileArray);//"className/varName"
+            getNextToken(fileArray);//" . "
+            getNextToken(fileArray);//subroutineName
+            getNextToken(fileArray);//" ( "
+            expressionList(fileArray);
+            getNextToken(fileArray);//" ) "
+        }
+        //rFinal=rFinal.Append(array["</subroutineCall>"]);
+    }
+
+    private varDec(fileArray:array[string]):void
+    {
+        while(CheckNextTokenMiddle(fileArray)=="var"){
+             foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+            rFinal=rFinal.Append(array["<varDec>"]);
+            
+            revach+=2;
+            getNextToken(fileArray);//"var"
+            getNextToken(fileArray);//type
+            getNextToken(fileArray);// varName              
+            while (CheckNextTokenMiddle(fileArray)==","){
+                getNextToken(fileArray); // <symbol> , </symbol>
+                getNextToken(fileArray);// <identifier> y </identifier>
+            }         
+            getNextToken(fileArray);//" ; "
+            revach--;
+            revach--;
+            foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+            rFinal=rFinal.Append(array["</varDec>"]);
+            
+        }
+    }
+
+    private expressionList(fileArray:array[string]):void
+    {
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["<expressionList>"]);
+         
+            revach+=2;
+        if(CheckNextTokenMiddle(fileArray)!=")"){
+            expression(fileArray);
+            while(CheckNextTokenMiddle(fileArray)==","){
+                getNextToken(fileArray);//" , "
+                expression(fileArray);
+            }
+        }          
+        else{}
+        revach--;
+        revach--;
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array["</expressionList>"]);
+        
+    }
+
+    private op(fileArray:array[string]):void
+    {
+        //rFinal=rFinal.Append(array["<op>"]);
+        getNextToken(fileArray);//"op"            
+        //rFinal=rFinal.Append(array["</op>"]);
+    }
+
+    private unaryOp(fileArray:array[string]):void
+    {
+        //rFinal=rFinal.Append(array["<unaryOp>"]);
+        getNextToken(fileArray);//"op"            
+        //rFinal=rFinal.Append(array["</unaryOp>"]);
+    }
+
+    private getNextToken(fileArray:array[string]):void
+    {
+        mutable token=fileArray[linesC].ToString();
+        linesC++;
+        foreach (_ in $[0..revach]) {
+               rFinal=rFinal.Append(array[" "]);
+                }
+        rFinal=rFinal.Append(array[token]);
+    }
+
+    private CheckNextTokenMiddle(fileArray:array[string]):string
+    {
+        mutable token=fileArray[linesC].ToString();
+        token.Split(' ')[1];
+    }
+
+    private CheckNextTokenFirst(fileArray:array[string]):string
+    {
+        mutable token=fileArray[linesC].ToString();
+        token.Substring(0,token.IndexOf(' '));//firstWord
+    }
+
+}
